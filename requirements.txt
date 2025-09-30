@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+catboost
+tensorflow
+keras
+python-binance
+python-dotenv
+fastapi
+uvicorn
+streamlit
