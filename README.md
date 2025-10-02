@@ -42,8 +42,8 @@ money-printer/
 ## Quickstart (development)
 1. Clone:
 ```bash
-git clone <REPO_URL>
-cd money-printer
+git clone https://github.com/vinny-Kev/CallMaker.git
+cd money-printer ## or the name of the directory the project is pulled in
 python -m venv .venv
 source .venv/bin/activate     # linux / mac
 .venv\Scripts\activate        # windows
