@@ -43,7 +43,7 @@ money-printer/
 1. Clone:
 ```bash
 git clone https://github.com/vinny-Kev/CallMaker.git
-cd money-printer ## or the name of the directory the project is pulled in
+cd money-printer ## or the name of the directory the project is cloned in
 python -m venv .venv
 source .venv/bin/activate     # linux / mac
 .venv\Scripts\activate        # windows
