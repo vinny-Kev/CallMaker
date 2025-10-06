@@ -1,0 +1,34 @@
+{
+  "symbol": "BTCUSDT",
+  "interval": "1m",
+  "n_features": 70,
+  "n_classes": 3,
+  "sequence_length": 30,
+  "training_date": "20251005_225417",
+  "class_weights": {
+    "0": 0.5671641791044776,
+    "1": 1.1875,
+    "2": 2.533333333333333
+  },
+  "performance": {
+    "train": {
+      "accuracy": 0.9166666666666666,
+      "precision_macro": 0.8899666249478515,
+      "recall_macro": 0.9129251700680272,
+      "f1_macro": 0.8934470184470186,
+      "roc_auc_ovr": 0.9887588070942662
+    },
+    "test": {
+      "accuracy": 0.6010126582278481,
+      "precision_macro": 0.3775459656319777,
+      "recall_macro": 0.5543086978381097,
+      "f1_macro": 0.2842087936753373,
+      "roc_auc_ovr": 0.8142546657768247
+    },
+    "overfitting_analysis": {
+      "train_test_accuracy_gap": 0.3156540084388185,
+      "train_test_f1_gap": 0.6092382247716812,
+      "train_test_roc_gap": 0.17450414131744152
+    }
+  }
+}

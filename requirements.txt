@@ -1,11 +1,24 @@
-pandas
-numpy
-scikit-learn
-catboost
-tensorflow
-keras
-python-binance
-python-dotenv
+# CORE FRAMEWORK & DATA
+streamlit
 fastapi
 uvicorn
-streamlit
+pandas
+numpy
+python-binance
+python-dotenv
+
+# MACHINE LEARNING & MODELING
+scikit-learn
+# CatBoost requires specific installation for full features, but this is the standard package
+catboost
+# Core ML Libraries
+scikit-learn==1.3.2
+keras
+
+    
+
+# UTILITIES & HIGH-PERFORMANCE (Optional but Recommended)
+# For data manipulation and feature engineering
+ta # Technical Analysis library for common indicators (RSI, MACD, etc.)
+# For high-performance JSON parsing in the FastAPI backend
+orjson
