@@ -8,11 +8,11 @@ python-binance
 python-dotenv
 
 # MACHINE LEARNING & MODELING
-scikit-learn
-# CatBoost requires specific installation for full features, but this is the standard package
-catboost
-# Core ML Libraries
 scikit-learn==1.3.2
+# CatBoost (not used in LSTM pipeline but keeping for backwards compatibility)
+catboost
+# Deep Learning - LSTM/GRU models
+tensorflow>=2.13.0
 keras
 
     

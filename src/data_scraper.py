@@ -63,17 +63,22 @@ class DataScraper:
             self.twm.stop()
             print("Websocket stopped.")
 
-    ## Order book depth to get liquidity context
+    ## Order book depth to get liquidity context + imbalance
     def fetch_order_book_context(self, depth=20):
         order_book = self.client.get_order_book(symbol=self.symbol, limit=depth)
         bids = pd.DataFrame(order_book['bids'], columns=['price', 'quantity']).astype(float)
         asks = pd.DataFrame(order_book['asks'], columns=['price', 'quantity']).astype(float)
 
+        bid_volume = bids['quantity'].sum()
+        ask_volume = asks['quantity'].sum()
+        total_volume = bid_volume + ask_volume
+        
         context = {
-            "bid_volume": bids['quantity'].sum(),
-            "ask_volume": asks['quantity'].sum(),
-            "spread": asks['price'].min() - bids['price'].max()
-
+            "bid_volume": bid_volume,
+            "ask_volume": ask_volume,
+            "spread": asks['price'].min() - bids['price'].max(),
+            "order_book_imbalance": (bid_volume - ask_volume) / (total_volume + 1e-10),  # -1 to 1
+            "buy_pressure": bid_volume / (total_volume + 1e-10)  # 0 to 1
         }
         return context
 
@@ -87,6 +92,36 @@ class DataScraper:
             "volume": float(ticker['volume'])
         }
         return context
+    
+    ## Funding rate (market sentiment - futures only)
+    def fetch_funding_rate(self):
+        """
+        Get current funding rate for perpetual futures (market sentiment indicator)
+        Positive = longs pay shorts (bullish sentiment)
+        Negative = shorts pay longs (bearish sentiment)
+        """
+        try:
+            funding = self.client.futures_funding_rate(symbol=self.symbol, limit=1)
+            if funding:
+                return float(funding[0]['fundingRate'])
+        except Exception as e:
+            print(f"Warning: Could not fetch funding rate: {e}")
+        return 0.0
+    
+    ## Long/Short ratio (market sentiment - futures only)
+    def fetch_long_short_ratio(self):
+        """
+        Get long/short account ratio (sentiment indicator)
+        >1 = more accounts are long (bullish)
+        <1 = more accounts are short (bearish)
+        """
+        try:
+            ratio = self.client.futures_global_longshort_ratio(symbol=self.symbol, period='5m', limit=1)
+            if ratio:
+                return float(ratio[0]['longShortRatio'])
+        except Exception as e:
+            print(f"Warning: Could not fetch long/short ratio: {e}")
+        return 1.0
     
 
     
@@ -106,10 +141,16 @@ class DataScraper:
         ##|| MERGE WITH OTHER CONTEXT DATA ||##
         order_book_context = self.fetch_order_book_context()
         ticker_context = self.fetch_24h_ticker_context()
+        
+        # Market sentiment indicators
+        funding_rate = self.fetch_funding_rate()
+        long_short_ratio = self.fetch_long_short_ratio()
 
         context = {
             "order_book": order_book_context,
-            "ticker": ticker_context
+            "ticker": ticker_context,
+            "funding_rate": funding_rate,
+            "long_short_ratio": long_short_ratio
         }
         return df, context                                                                      
     ### |||| LATER IN FEATURE ENGINEERING: Merge context into training features 

@@ -41,17 +41,27 @@ def deploy_model_to_api(api_service_path=r'd:\CODE ALL HERE PLEASE\bitcoin-api-s
         print(f"  Symbol: {metadata.get('symbol', 'N/A')}")
         print(f"  Interval: {metadata.get('interval', 'N/A')}")
         print(f"  Features: {metadata.get('n_features', 'N/A')}")
-        print(f"  Architecture: {metadata.get('model_architecture', 'N/A')}")
-        print(f"  Training Date: {metadata.get('training_date', 'N/A')}")
+        print(f"  Loss Type: {metadata.get('loss_type', 'N/A')}")
+        print(f"  Days Trained: {metadata.get('days_trained', 'N/A')}")
+        print(f"  Timestamp: {metadata.get('timestamp', 'N/A')}")
         
         # Display performance metrics if available
         if 'performance' in metadata:
             perf = metadata['performance']
             print(f"\n📈 Performance Metrics:")
-            print(f"  Train Accuracy: {perf['train']['accuracy']*100:.2f}%")
-            print(f"  Test Accuracy:  {perf['test']['accuracy']*100:.2f}%")
-            print(f"  Test F1 Score:  {perf['test']['f1_macro']:.4f}")
-            print(f"  Test ROC AUC:   {perf['test']['roc_auc_ovr']:.4f}")
+            print(f"  Direction Accuracy: {perf.get('direction_accuracy', 'N/A'):.2f}%")
+            print(f"  Top Win Rate: {perf.get('top_win_rate', 'N/A'):.2f}%")
+            print(f"  Top Trades: {perf.get('top_trades', 'N/A')}")
+            print(f"  Avg Return: {perf.get('top_avg_return', 'N/A'):.3f}%")
+        
+        # Display best strategy if available
+        if 'best_strategy' in metadata:
+            best = metadata['best_strategy']
+            print(f"\n🎯 Best Trading Strategy:")
+            print(f"  Strategy: {best.get('pred_type', 'N/A')}_{best.get('threshold', 'N/A')}")
+            print(f"  Win Rate: {best.get('win_rate', 'N/A'):.2f}%")
+            print(f"  Trades: {best.get('n_trades', 'N/A')}")
+            print(f"  Avg Return: {best.get('avg_return', 'N/A'):.3f}%")
     
     # Setup API service path
     api_models_path = Path(api_service_path) / 'data' / 'models'
