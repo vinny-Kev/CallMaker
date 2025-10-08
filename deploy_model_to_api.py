@@ -24,7 +24,7 @@ def deploy_model_to_api(api_service_path=r'd:\CODE ALL HERE PLEASE\bitcoin-api-s
     """Deploy the latest model to the API service directory"""
     
     print("="*80)
-    print("🚀 MODEL DEPLOYMENT TO API SERVICE")
+    print(" MODEL DEPLOYMENT TO API SERVICE")
     print("="*80)
     
     # Get latest model directory

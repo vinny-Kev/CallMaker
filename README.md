@@ -53,7 +53,7 @@ This repository contains the machine learning training pipeline that powers the 
 | **F1 Score** | 0.3182 |- NO SMOTE (no synthetic oversampling).
 
 | **Training Time** | ~1 minute |
-
+         
 | **Features** | 70 engineered features |## ⚡ Quick Start (3 Steps)- Retrain daily (scriptable via cron / GitHub Actions).
 
 

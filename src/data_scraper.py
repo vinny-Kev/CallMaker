@@ -111,7 +111,7 @@ class DataScraper:
             "order_book": order_book_context,
             "ticker": ticker_context
         }
-        return df, context
+        return df, context                                                                      
     ### |||| LATER IN FEATURE ENGINEERING: Merge context into training features 
                 ### - spread/close -> liquidity
                 ### - bid_volume/ask_volume -> imbalance feature

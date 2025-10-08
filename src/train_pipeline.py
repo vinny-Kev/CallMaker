@@ -285,6 +285,32 @@ class MLPipeline:
             y_pred = self.ensemble.logistic.predict(self.prepared_data['X_test'])
             f1 = f1_score(self.prepared_data['y_test'], y_pred, average='macro')
             print(f"\n✓ Logistic Regression Test F1 Score: {f1:.4f}")
+    
+    def train_meta_learner(self):
+        """Step 4d: Train Meta-Learner (Stacking)"""
+        print(f"\n{'='*60}")
+        print(f"STEP 4d: TRAINING META-LEARNER (STACKING)")
+        print(f"{'='*60}")
+        
+        # Check if we have validation set
+        has_val = len(self.prepared_data.get('X_val', [])) > 0
+        
+        if has_val:
+            # Train meta-learner with validation set
+            self.ensemble.train_meta_learner(
+                self.prepared_data['X_train'],
+                self.prepared_data['y_train'],
+                self.prepared_data['X_val'],
+                self.prepared_data['y_val']
+            )
+        else:
+            # Train meta-learner without validation
+            self.ensemble.train_meta_learner(
+                self.prepared_data['X_train'],
+                self.prepared_data['y_train'],
+                None,
+                None
+            )
         
     def train_lstm(self):
         """Step 4d: Train LSTM"""
@@ -603,7 +629,7 @@ class MLPipeline:
         
         return result
         
-    def save_models(self, save_dir='data/models', metrics=None):
+    def save_models(self, save_dir='data/models', metrics=None, threshold_percent=0.2, lookahead_periods=6):
         """Step 6: Save models"""
         print(f"\n{'='*60}")
         print(f"STEP 6: SAVING MODELS")
@@ -636,8 +662,39 @@ class MLPipeline:
             'n_classes': 3,
             'training_date': timestamp,
             'class_weights': self.prepared_data['class_weights'],
-            'model_architecture': '3-model ensemble: CatBoost + Random Forest + Logistic Regression',
-            'ensemble_weights': self.ensemble.weights if self.ensemble.weights else {'catboost': 0.5, 'rf': 0.25, 'logistic': 0.25}
+            'model_architecture': 'Stacked Ensemble: (CatBoost + Random Forest + Logistic) → Meta-Learner',
+            'ensemble_weights': self.ensemble.weights if self.ensemble.weights else {'catboost': 0.5, 'rf': 0.25, 'logistic': 0.25},
+            'use_stacking': self.ensemble.use_stacking,
+            'has_meta_learner': self.ensemble.meta_learner is not None,
+            'threshold_percent': threshold_percent,
+            'lookahead_periods': lookahead_periods,
+            # Enhanced metadata for contextual analysis
+            'contextual_thresholds': {
+                'high_volatility_atr_pct': 1.5,
+                'very_high_volatility_atr_pct': 2.5,
+                'overbought_rsi': 70,
+                'oversold_rsi': 30,
+                'strong_momentum_roc': 2.0,
+                'high_volume_ratio': 1.5,
+                'tight_bollinger': 0.015,
+                'wide_bollinger': 0.035,
+                'strong_trend_adx': 40,
+                'weak_trend_adx': 20,
+                'short_trend_threshold': 0.1,
+                'long_trend_threshold': 0.15
+            },
+            'trend_config': {
+                'short_term_smas': [7, 14],
+                'long_term_smas': [21, 50],
+                'adx_periods': 14,
+                'macd_config': {'fast': 12, 'slow': 26, 'signal': 9}
+            },
+            'action_thresholds': {
+                'high_confidence': 0.7,
+                'medium_confidence': 0.5,
+                'min_trend_score': 2,
+                'high_conviction_score': 4
+            }
         }
         
         # Add performance metrics if provided
@@ -797,10 +854,13 @@ class MLPipeline:
         # Step 3: Preprocess data with selected features
         self.preprocess_data(df_features, selected_features=selected_features)
         
-        # Step 4: Train models (3-model ensemble)
+        # Step 4: Train base models (3-model ensemble)
         self.train_catboost()
         self.train_random_forest()
-        self.train_logistic()  # Add Logistic Regression
+        self.train_logistic()
+        
+        # Step 4d: Train meta-learner (stacking)
+        self.train_meta_learner()
         
         # Step 5: K-Fold Cross-Validation (if enabled)
         cv_results = None
@@ -813,7 +873,11 @@ class MLPipeline:
         # Step 7: Save models
         model_dir = None
         if save_models:
-            model_dir = self.save_models(metrics=all_metrics)
+            model_dir = self.save_models(
+                metrics=all_metrics,
+                threshold_percent=threshold_percent,
+                lookahead_periods=lookahead_periods
+            )
         
         # Check if we have validation set
         has_validation = 'validation' in all_metrics
@@ -861,8 +925,8 @@ def main():
     # Configuration
     SYMBOL = "BTCUSDT"
     INTERVAL = "1m"  # 1 minute intervals
-    LOOKBACK = "7 days ago UTC"  # Increased to 7 days for more data
-    THRESHOLD = 0.5  # 0.5% movement threshold
+    LOOKBACK = "35 days ago UTC"  # Increased to 35 days for 50,000+ data points (better ML training)
+    THRESHOLD = 0.2  # 0.2% movement threshold (lowered from 0.5% for more signal on 1m candles)
     LOOKAHEAD = 6  # Look 6 periods ahead (6 minutes for 1m intervals)
     RUN_CV = True  # Enable k-fold cross-validation
     

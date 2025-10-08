@@ -53,15 +53,21 @@ env/
 data/models/
 src/data/models/
 
-# Data files
+# Data files (ephemeral - regenerated during training)
 data/raw/
 data/processed/
+data/features/
 *.csv
 *.parquet
 
-# CatBoost info
+# CatBoost training logs (auto-generated)
 catboost_info/
 src/catboost_info/
+
+# Old/archived directories (cleaned up)
+app/
+notebooks/
+src/data/
 
 # Logs
 *.log

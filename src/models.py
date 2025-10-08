@@ -2,6 +2,7 @@
 Machine Learning Models Module
 Contains CatBoost, Random Forest, and Logistic Regression models for Bitcoin prediction
 No LSTM - removed for better performance and reliability
+Includes Stacking Meta-Learner for improved ensemble performance
 """
 
 import numpy as np
@@ -10,6 +11,7 @@ from catboost import CatBoostClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, f1_score
 import joblib
 import json
 import os
@@ -230,14 +232,88 @@ class LogisticRegressionModel:
 
 
 class EnsembleModel:
-    """Ensemble of CatBoost, Random Forest, and Logistic Regression models"""
+    """
+    Stacked Ensemble with Meta-Learner
+    - Base learners: CatBoost, Random Forest, Logistic Regression
+    - Meta-learner: Logistic Regression (trained on base predictions)
+    """
     
     def __init__(self, n_classes=3):
         self.n_classes = n_classes
         self.catboost = CatBoostModel(n_classes)
         self.random_forest = RandomForestModel(n_classes)
         self.logistic = LogisticRegressionModel(n_classes)
-        self.weights = None
+        self.meta_learner = None  # Will be trained on base predictions
+        self.weights = None  # Fallback for weighted averaging if meta-learner not trained
+        self.use_stacking = False  # Flag to determine prediction method
+        
+    def train_meta_learner(self, X_train, y_train, X_val=None, y_val=None):
+        """
+        Train meta-learner on base model predictions
+        
+        Args:
+            X_train: Original training features
+            y_train: Training labels
+            X_val: Optional validation features
+            y_val: Optional validation labels
+        """
+        print("\n" + "="*60)
+        print("TRAINING META-LEARNER (Stacking)")
+        print("="*60)
+        
+        # Generate base predictions for training set
+        print("Generating base model predictions for training data...")
+        catboost_proba = self.catboost.predict_proba(X_train)
+        rf_proba = self.random_forest.predict_proba(X_train)
+        logistic_proba = self.logistic.predict_proba(X_train)
+        
+        # Stack predictions: shape (n_samples, n_models * n_classes)
+        # Each base model outputs 3 probabilities (one per class)
+        X_meta_train = np.hstack([catboost_proba, rf_proba, logistic_proba])
+        print(f"  Meta-features shape: {X_meta_train.shape}")
+        print(f"  (Each sample has {self.n_classes} probs × 3 models = {X_meta_train.shape[1]} features)")
+        
+        # Initialize meta-learner (Logistic Regression with stronger regularization)
+        from sklearn.linear_model import LogisticRegression
+        self.meta_learner = LogisticRegression(
+            max_iter=1000,
+            solver='lbfgs',
+            multi_class='multinomial',
+            random_state=42,
+            class_weight='balanced',
+            C=0.1,  # Stronger regularization (smaller C = more regularization)
+            penalty='l2'  # L2 regularization
+        )
+        
+        # Train meta-learner
+        print("\nTraining meta-learner on base predictions...")
+        self.meta_learner.fit(X_meta_train, y_train)
+        self.use_stacking = True
+        
+        # Evaluate on training set
+        meta_pred_train = self.meta_learner.predict(X_meta_train)
+        train_acc = accuracy_score(y_train, meta_pred_train)
+        train_f1 = f1_score(y_train, meta_pred_train, average='macro')
+        print(f"  Meta-learner Train Accuracy: {train_acc:.4f}")
+        print(f"  Meta-learner Train F1: {train_f1:.4f}")
+        
+        # Evaluate on validation set if provided
+        if X_val is not None and y_val is not None:
+            print("\nEvaluating meta-learner on validation data...")
+            catboost_proba_val = self.catboost.predict_proba(X_val)
+            rf_proba_val = self.random_forest.predict_proba(X_val)
+            logistic_proba_val = self.logistic.predict_proba(X_val)
+            
+            X_meta_val = np.hstack([catboost_proba_val, rf_proba_val, logistic_proba_val])
+            meta_pred_val = self.meta_learner.predict(X_meta_val)
+            
+            val_acc = accuracy_score(y_val, meta_pred_val)
+            val_f1 = f1_score(y_val, meta_pred_val, average='macro')
+            print(f"  Meta-learner Val Accuracy: {val_acc:.4f}")
+            print(f"  Meta-learner Val F1: {val_f1:.4f}")
+        
+        print("\n✓ Meta-learner training complete!")
+        print("  Stacking enabled: Base models → Meta-learner → Final prediction")
         
     def set_weights(self, catboost_weight=0.5, rf_weight=0.25, logistic_weight=0.25):
         """Set ensemble weights - 3 model ensemble"""
@@ -253,29 +329,38 @@ class EnsembleModel:
     def predict_proba(self, X_regular):
         """
         Get ensemble prediction probabilities
+        Uses stacking meta-learner if trained, otherwise falls back to weighted averaging
         
         Args:
             X_regular: Features for CatBoost, Random Forest, and Logistic Regression
             
         Returns:
-            Weighted average probabilities
+            Final prediction probabilities (either from meta-learner or weighted average)
         """
-        if self.weights is None:
-            self.set_weights()
-        
-        # Get predictions from each model
+        # Get base model predictions
         catboost_proba = self.catboost.predict_proba(X_regular)
         rf_proba = self.random_forest.predict_proba(X_regular)
         logistic_proba = self.logistic.predict_proba(X_regular)
         
-        # Weighted average of 3 models
-        ensemble_proba = (
-            self.weights['catboost'] * catboost_proba +
-            self.weights['rf'] * rf_proba +
-            self.weights['logistic'] * logistic_proba
-        )
-        
-        return ensemble_proba
+        # Use stacking if meta-learner is trained
+        if self.use_stacking and self.meta_learner is not None:
+            # Stack base predictions as meta-features
+            X_meta = np.hstack([catboost_proba, rf_proba, logistic_proba])
+            
+            # Meta-learner makes final prediction
+            return self.meta_learner.predict_proba(X_meta)
+        else:
+            # Fallback to weighted averaging
+            if self.weights is None:
+                self.set_weights()
+            
+            ensemble_proba = (
+                self.weights['catboost'] * catboost_proba +
+                self.weights['rf'] * rf_proba +
+                self.weights['logistic'] * logistic_proba
+            )
+            
+            return ensemble_proba
     
     def predict(self, X_regular):
         """Get ensemble predictions"""
@@ -283,29 +368,64 @@ class EnsembleModel:
         return np.argmax(proba, axis=1)
     
     def save(self, save_dir):
-        """Save all models"""
+        """Save all models including meta-learner"""
         os.makedirs(save_dir, exist_ok=True)
         
-        # Save individual models
+        # Save base models
         self.catboost.save(os.path.join(save_dir, 'catboost_model.cbm'))
         self.random_forest.save(os.path.join(save_dir, 'random_forest_model.pkl'))
         self.logistic.save(os.path.join(save_dir, 'logistic_model.pkl'))
         
-        # Save weights
+        # Save meta-learner if trained
+        if self.meta_learner is not None:
+            meta_path = os.path.join(save_dir, 'meta_learner.pkl')
+            joblib.dump(self.meta_learner, meta_path)
+            print(f"✓ Meta-learner saved to {meta_path}")
+        
+        # Save ensemble config
+        ensemble_config = {
+            'weights': self.weights,
+            'use_stacking': self.use_stacking,
+            'has_meta_learner': self.meta_learner is not None
+        }
         with open(os.path.join(save_dir, 'ensemble_weights.json'), 'w') as f:
-            json.dump(self.weights, f)
+            json.dump(ensemble_config, f)
         
         print(f"✓ Ensemble models saved to {save_dir}")
+        if self.use_stacking:
+            print(f"  Stacking: ENABLED (meta-learner trained)")
+        else:
+            print(f"  Stacking: DISABLED (using weighted averaging)")
     
     def load(self, save_dir):
-        """Load all models"""
+        """Load all models including meta-learner"""
         self.catboost.load(os.path.join(save_dir, 'catboost_model.cbm'))
         self.random_forest.load(os.path.join(save_dir, 'random_forest_model.pkl'))
         self.logistic.load(os.path.join(save_dir, 'logistic_model.pkl'))
         
-        # Load weights
+        # Load ensemble config
         with open(os.path.join(save_dir, 'ensemble_weights.json'), 'r') as f:
-            self.weights = json.load(f)
+            ensemble_config = json.load(f)
+        
+        # Handle backward compatibility
+        if isinstance(ensemble_config, dict) and 'use_stacking' in ensemble_config:
+            self.weights = ensemble_config.get('weights')
+            self.use_stacking = ensemble_config.get('use_stacking', False)
+            
+            # Load meta-learner if it exists
+            meta_path = os.path.join(save_dir, 'meta_learner.pkl')
+            if ensemble_config.get('has_meta_learner') and os.path.exists(meta_path):
+                self.meta_learner = joblib.load(meta_path)
+                print(f"✓ Meta-learner loaded from {meta_path}")
+        else:
+            # Old format: just weights
+            self.weights = ensemble_config
+            self.use_stacking = False
+            self.meta_learner = None
         
         print(f"✓ Ensemble models loaded from {save_dir}")
         print(f"  Weights: {self.weights}")
+        if self.use_stacking:
+            print(f"  Stacking: ENABLED")
+        else:
+            print(f"  Stacking: DISABLED (using weighted averaging)")
